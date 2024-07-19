@@ -1,0 +1,51 @@
+use_frameworks!
+
+pod 'SystemFontOverride', :path => '..'
+pod 'SwiftQuality', :git => 'https://github.com/yonat/SwiftQuality'
+
+target 'SystemFontOverrideDemo' do
+  script_phase :name => 'SwiftFormat',
+    :execution_position => :before_compile,
+    :script => 'if [[ "Debug" == "${CONFIGURATION}" && ! $ENABLE_PREVIEWS == "YES" ]]; then "${PODS_ROOT}/SwiftFormat/CommandLineTool/swiftformat" --swiftversion ${SWIFT_VERSION} --config "${PODS_ROOT}/SwiftQuality/.swiftformat" "${SRCROOT}/.." ; fi'
+
+  script_phase :name => 'SwiftLintAutocorrect',
+    :execution_position => :before_compile,
+    :script => 'if [[ "Debug" == "${CONFIGURATION}" && ! $ENABLE_PREVIEWS == "YES" ]]; then "${PODS_ROOT}/SwiftLint/swiftlint" --fix --config "${PODS_ROOT}/SwiftQuality/.swiftlint.yml" "${SRCROOT}/.." ; fi'
+
+  script_phase :name => 'SwiftLint',
+    :execution_position => :after_compile,
+    :script => 'if [ "Debug" == "${CONFIGURATION}" && ! $ENABLE_PREVIEWS == "YES" ]; then "${PODS_ROOT}/SwiftLint/swiftlint" --config "${PODS_ROOT}/SwiftQuality/.swiftlint.yml" "${SRCROOT}/.." ; fi'
+end
+
+# Fix Xcode 14 warnings "Run script build phase '[CP] _____' will be run during every build because it does not specify any outputs."
+# Based on https://github.com/CocoaPods/CocoaPods/issues/11444#issuecomment-1300023416
+post_integrate do |installer|
+  main_project = installer.aggregate_targets[0].user_project
+  main_project.targets.each do |target|
+    target.build_phases.each do |phase|
+      next unless phase.is_a?(Xcodeproj::Project::Object::PBXShellScriptBuildPhase)
+      next unless phase.name.start_with?("[CP")
+      next unless (phase.input_paths || []).empty? && (phase.output_paths || []).empty?
+      phase.always_out_of_date = "1"
+    end
+  end
+  main_project.save
+end
+
+# Workaround for Xcode 15 error DT_TOOLCHAIN_DIR cannot be used to evaluate LIBRARY_SEARCH_PATHS
+post_install do |installer|
+  installer.aggregate_targets.each do |target|
+    target.xcconfigs.each do |variant, xcconfig|
+      xcconfig_path = target.client_root + target.xcconfig_relative_path(variant)
+      IO.write(xcconfig_path, IO.read(xcconfig_path).gsub("DT_TOOLCHAIN_DIR", "TOOLCHAIN_DIR"))
+    end
+  end
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      if config.base_configuration_reference.is_a? Xcodeproj::Project::Object::PBXFileReference
+        xcconfig_path = config.base_configuration_reference.real_path
+        IO.write(xcconfig_path, IO.read(xcconfig_path).gsub("DT_TOOLCHAIN_DIR", "TOOLCHAIN_DIR"))
+      end
+    end
+  end
+end

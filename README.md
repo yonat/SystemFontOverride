@@ -8,6 +8,8 @@ Easy font branding for your iOS app.
 [![Platform](https://img.shields.io/cocoapods/p/SystemFontOverride.svg?style=flat)](http://cocoapods.org/pods/SystemFontOverride)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 
+<img align="center" src="Screenshots/SystemFontOverride.png">
+
 ## Features
 
 * Override the default system font with your own branded font.
